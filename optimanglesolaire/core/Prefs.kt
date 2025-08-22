@@ -11,8 +11,19 @@ object Prefs {
   private const val K_LON = "last_lon"
   private const val K_TILT = "last_tilt"
   private const val K_AZ = "last_az"
+  private const val K_PEAK_POWER = "peak_power_kwc" // Clé ajoutée
 
   private fun sp(ctx: Context) = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+
+  // Fonctions ajoutées pour la puissance crête
+  fun savePeakPower(context: Context, kwc: String) {
+    sp(context).edit().putString(K_PEAK_POWER, kwc).apply()
+  }
+
+  fun loadPeakPower(context: Context): String {
+    // On retourne "1.0" par défaut si rien n'est sauvegardé
+    return sp(context).getString(K_PEAK_POWER, "1.c") ?: "1.0"
+  }
 
   fun saveLastLatLon(context: Context, lat: Double, lon: Double) {
     sp(context).edit()

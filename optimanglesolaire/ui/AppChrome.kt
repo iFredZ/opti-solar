@@ -5,17 +5,15 @@ package com.fredz.optimanglesolaire.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.ui.platform.LocalDensity
+import com.fredz.optimanglesolaire.ui.components.LanguagePicker // IMPORT AJOUTÉ
 
 class ChromeController {
   var bottomHidden by mutableStateOf(false)
@@ -49,7 +47,8 @@ fun AppShell(
     Scaffold(
       topBar = {
         CenterAlignedTopAppBar(
-          navigationIcon = { LanguageMenu(onLanguageChange) },
+          // CORRECTION : On place le sélecteur de langue ici
+          navigationIcon = { LanguagePicker(modifier = Modifier.padding(start = 8.dp)) },
           title = {
             Text(
               "Opti SOLAR",
@@ -67,7 +66,6 @@ fun AppShell(
         val showBottom = !isKeyboardVisible && !chrome.bottomHidden
         if (showBottom) {
           BottomAppBar(
-            // LA CORRECTION EST ICI : on fixe la hauteur
             modifier = Modifier.height(56.dp),
             tonalElevation = 3.dp,
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -81,7 +79,7 @@ fun AppShell(
               }
               TextButton(onClick = {
                 runCatching { ctx.startActivity(emailIntent) }
-              }) { Text("✉️ Bug / Suggestion", fontSize = 12.sp) } // Taille de texte réduite
+              }) { Text("✉️ Bug / Suggestion", fontSize = 12.sp) }
 
               Spacer(Modifier.weight(1f))
 
@@ -90,7 +88,7 @@ fun AppShell(
                   val i = Intent(Intent.ACTION_VIEW, Uri.parse(PAYPAL_URL))
                   ctx.startActivity(i)
                 }
-              }) { Text("💝 Don PayPal", fontSize = 12.sp) } // Taille de texte réduite
+              }) { Text("💝 Don PayPal", fontSize = 12.sp) }
             }
           )
         }
@@ -102,6 +100,4 @@ fun AppShell(
   }
 }
 
-// Les fonctions AlertDialog et LanguageMenu ne changent pas
-@Composable
-private fun LanguageMenu(onLanguageChange: (String) -> Unit) { /* ... */ }
+// L'ancienne fonction LanguageMenu n'est plus nécessaire et a été supprimée.

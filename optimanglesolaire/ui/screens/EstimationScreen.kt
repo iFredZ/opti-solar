@@ -1,27 +1,35 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.fredz.optimanglesolaire.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fredz.optimanglesolaire.feature.estimation.EstimationViewModel
-import com.fredz.optimanglesolaire.feature.estimation.ScenarioResult
+import com.fredz.optimanglesolaire.feature.estimation.Frequency
+import java.text.DecimalFormat
 
 @Composable
 fun EstimationScreen(
-  viewModel: EstimationViewModel, // Le "cerveau" est maintenant passé en paramètre
+  viewModel: EstimationViewModel,
   onBack: () -> Unit = {}
 ) {
+  val context = LocalContext.current // On récupère le contexte pour le PDF
+
   Scaffold(
     topBar = {
       TopAppBar(
@@ -34,11 +42,11 @@ fun EstimationScreen(
       Modifier
         .padding(pad)
         .fillMaxSize()
-        .verticalScroll(rememberScrollState())
+        .verticalScroll(androidx.compose.foundation.rememberScrollState())
         .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-      // La carte ne fait plus que lire et écrire dans le ViewModel
+      // Panneau de configuration (inchangé)
       Column(
         modifier = Modifier
           .fillMaxWidth()
@@ -47,92 +55,81 @@ fun EstimationScreen(
           .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
       ) {
-        Text("Récapitulatif (modifiable)", style = MaterialTheme.typography.titleMedium)
-
-        OutlinedTextField(
-          value = viewModel.peakPower, onValueChange = { viewModel.peakPower = it },
-          label = { Text("Puissance crête (kWc)") }, singleLine = true
-        )
-        OutlinedTextField(
-          value = viewModel.latitude, onValueChange = { viewModel.latitude = it },
-          label = { Text("Latitude") }, singleLine = true
-        )
-        OutlinedTextField(
-          value = viewModel.longitude, onValueChange = { viewModel.longitude = it },
-          label = { Text("Longitude") }, singleLine = true
-        )
-        OutlinedTextField(
-          value = viewModel.tilt, onValueChange = { viewModel.tilt = it },
-          label = { Text("Inclinaison (°)") }, singleLine = true
-        )
-        OutlinedTextField(
-          value = viewModel.azimuth, onValueChange = { viewModel.azimuth = it },
-          label = { Text("Azimut (0=sud, 90=ouest, -90=est)") }, singleLine = true
-        )
-
-        // Le bouton appelle maintenant directement la fonction du "cerveau"
+        Text("Paramètres de l'estimation", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(value = viewModel.peakPower, onValueChange = { viewModel.peakPower = it }, label = { Text("Puissance crête (kWc)") }, singleLine = true)
+        OutlinedTextField(value = viewModel.latitude, onValueChange = { viewModel.latitude = it }, label = { Text("Latitude") }, singleLine = true)
+        OutlinedTextField(value = viewModel.longitude, onValueChange = { viewModel.longitude = it }, label = { Text("Longitude") }, singleLine = true)
+        OutlinedTextField(value = viewModel.tilt, onValueChange = { viewModel.tilt = it }, label = { Text("Inclinaison (°)") }, singleLine = true)
+        OutlinedTextField(value = viewModel.azimuth, onValueChange = { viewModel.azimuth = it }, label = { Text("Azimut (0=sud, 90=ouest, -90=est)") }, singleLine = true)
         Button(
           onClick = { viewModel.calculateScenarios() },
-          modifier = Modifier.fillMaxWidth()
-        ) { Text("Calculer avec PVGIS (3 scénarios)") }
+          modifier = Modifier.fillMaxWidth(),
+          enabled = !viewModel.isLoading
+        ) { Text("Calculer le gain potentiel") }
+      }
 
-        // On affiche le statut depuis le ViewModel
-        viewModel.status?.let {
-          Text(
-            it,
-            color = if (it.startsWith("Erreur")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-          )
-        }
+      // Section de résultats (inchangée)
+      AnimatedVisibility(visible = viewModel.status != null) {
+        Column(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalAlignment = Alignment.CenterHorizontally,
+          verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+          if (viewModel.isLoading) {
+            CircularProgressIndicator()
+            Text(text = viewModel.status ?: "", style = MaterialTheme.typography.bodySmall)
+          } else {
+            if (viewModel.getResultForFrequency("Votre configuration") != null) {
+              // ... (Sélecteur de fréquence et cartes de résultats inchangés) ...
+              SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(shape = RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50), onClick = { viewModel.onFrequencySelected(Frequency.DAILY) }, selected = viewModel.selectedFrequency == Frequency.DAILY) { Text("Jour") }
+                SegmentedButton(shape = RoundedCornerShape(0.dp), onClick = { viewModel.onFrequencySelected(Frequency.MONTHLY) }, selected = viewModel.selectedFrequency == Frequency.MONTHLY) { Text("Mois") }
+                SegmentedButton(shape = RoundedCornerShape(topEndPercent = 50, bottomEndPercent = 50), onClick = { viewModel.onFrequencySelected(Frequency.YEARLY) }, selected = viewModel.selectedFrequency == Frequency.YEARLY) { Text("An") }
+              }
+              val resultCurrent = viewModel.getResultForFrequency("Votre configuration")
+              val resultOptimalTilt = viewModel.getResultForFrequency("Inclinaison optimale")
+              val resultIdeal = viewModel.getResultForFrequency("Configuration IDÉALE")
+              resultCurrent?.let { ResultCard(label = "Production (${it.name})", value = it.yearlyKWh, unit = "kWh", subLabel = "Inclinaison: ${it.tilt.toInt()}°, Azimut: ${it.azimuth.toInt()}°") }
+              resultOptimalTilt?.let { ResultCard(label = "Production (${it.name})", value = it.yearlyKWh, unit = "kWh", subLabel = "Inclinaison: ${it.tilt.toInt()}°, Azimut: ${it.azimuth.toInt()}°") }
+              viewModel.gainValue?.let { HighlightCard(label = "Gain potentiel (${viewModel.frequencyLabel})", value = it, unit = viewModel.gainUnit) }
+              resultIdeal?.let { ResultCard(label = "Production (${it.name})", value = it.yearlyKWh, unit = "kWh", subLabel = "Inclinaison: ${it.tilt.toInt()}°, Azimut: ${it.azimuth.toInt()}°") }
 
-        // On affiche les résultats depuis le ViewModel
-        viewModel.results?.let { list ->
-          Spacer(Modifier.height(12.dp))
-          ScenarioTable(list)
+              // BOUTON PDF AJOUTÉ ICI
+              Spacer(modifier = Modifier.height(8.dp))
+              Button(
+                onClick = { viewModel.generateAndSharePdf(context) },
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Icon(Icons.Default.Share, contentDescription = "Exporter")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Exporter en PDF")
+              }
+            }
+          }
         }
       }
     }
   }
 }
 
+// Les composants ResultCard et HighlightCard ne changent pas
+// ...
 @Composable
-private fun ScenarioTable(items: List<ScenarioResult>) {
-  // (Cette partie n'a pas changé)
-  Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(RoundedCornerShape(12.dp))
-      .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-      .padding(12.dp)
-  ) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-      HeadCell("Scénario", weight = 1.6f)
-      HeadCell("Tilt", weight = 0.7f, align = TextAlign.End)
-      HeadCell("Az",   weight = 0.7f, align = TextAlign.End)
-      HeadCell("Annuel", weight = 1.0f, align = TextAlign.End)
-    }
-    HorizontalDivider(Modifier.padding(vertical = 6.dp))
-    items.forEach { r ->
-      Row(
-        Modifier
-          .fillMaxWidth()
-          .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-      ) {
-        Cell(r.name, weight = 1.6f)
-        Cell("${"%.0f".format(r.tilt)}°", weight = 0.7f, align = TextAlign.End)
-        Cell("${"%.0f".format(r.azimuth)}°", weight = 0.7f, align = TextAlign.End)
-        Cell(r.yearlyKWh?.let { "${"%.0f".format(it)} kWh" } ?: "n/d", weight = 1.0f, align = TextAlign.End)
-      }
+private fun ResultCard(label: String, value: Double?, unit: String, subLabel: String) {
+  Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+    Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+      Text(text = label, textAlign = TextAlign.Center)
+      Text(text = value?.let { "${DecimalFormat("0.00").format(it)} $unit" } ?: "N/A", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+      Text(text = subLabel, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
     }
   }
 }
-
 @Composable
-private fun RowScope.HeadCell(text: String, weight: Float = 1f, align: TextAlign = TextAlign.Start) {
-  Text(text = text, modifier = Modifier.weight(weight).padding(vertical = 6.dp, horizontal = 8.dp), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), textAlign = align)
-}
-
-@Composable
-private fun RowScope.Cell(text: String, weight: Float = 1f, align: TextAlign = TextAlign.Start) {
-  Text(text = text, modifier = Modifier.weight(weight).padding(vertical = 6.dp, horizontal = 8.dp), style = MaterialTheme.typography.bodyMedium, textAlign = align)
+private fun HighlightCard(label: String, value: Double, unit: String) {
+  Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+    Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+      Text(text = label, textAlign = TextAlign.Center)
+      Text(text = "~ ${DecimalFormat("0.00").format(value)} $unit", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
+    }
+  }
 }

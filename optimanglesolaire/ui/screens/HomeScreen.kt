@@ -201,9 +201,20 @@ fun HomeScreen(
         val tilt: String
         val azimuth: String
         if (viewModel.entryMode == EntryMode.SENSORS) {
-          val deviation = (viewModel.memorizedNumericAzimuth ?: 0f) - 180f
+          val memorizedAzimuth = viewModel.memorizedNumericAzimuth ?: 0f
+
+          // --- CORRECTION DE LA LOGIQUE DE CONVERSION ---
+          // Le capteur donne l'azimut par rapport au Nord (valeur de -180 à +180).
+          // PVGIS attend l'azimut par rapport au Sud.
+          var pvgisAzimuth = memorizedAzimuth - 180f
+          // On s'assure que le résultat reste dans la bonne plage (-180 à +180)
+          if (pvgisAzimuth < -180f) {
+            pvgisAzimuth += 360f
+          }
+
           tilt = DecimalFormat("0").format(viewModel.memorizedNumericTilt)
-          azimuth = DecimalFormat("0").format(deviation)
+          azimuth = DecimalFormat("0").format(pvgisAzimuth) // On utilise la valeur corrigée
+
         } else {
           tilt = viewModel.manualTiltText
           azimuth = viewModel.manualAzimuthText
